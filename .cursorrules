@@ -1,0 +1,444 @@
+## PROJECT OVERVIEW
+You are an expert Node.js developer tasked with building a Model Context Protocol (MCP) server that provides multi-database query execution capabilities. This server should support SQLite, PostgreSQL, and MySQL databases with a focus on security, performance, and extensibility using modern Node.js and TypeScript.
+Note: This project is mcp-server, not a web app or another app.
+
+## CORE REQUIREMENTS
+
+### 1. MCP Protocol Implementation
+- Implement full MCP server specification compliance
+- Use JSON-RPC for client-server communication
+- Provide proper error handling and response formatting
+- Support async/await patterns with modern ES modules
+
+### 2. Database Support
+- SQLite: File-based database support with better-sqlite3 or sqlite3
+- PostgreSQL: Production database support with pg (node-postgres)
+- MySQL: Enterprise database support with mysql2
+- Implement connection pooling for each database type
+- Provide unified interface across all database types
+
+### 3. Security Requirements
+- MANDATORY: Use parameterized queries only (prevent SQL injection)
+- Implement credential encryption for database connections
+- Add query validation and sanitization
+- Include audit logging for all database operations
+- Support rate limiting and timeout controls
+
+### 4. Architecture Pattern
+- Use dependency injection for database drivers
+- Implement proper connection lifecycle management
+- Follow SOLID principles and clean architecture
+- Use Zod for data validation and schema management
+- Use TypeScript for type safety
+
+## PROJECT STRUCTURE
+mcp-database-server/
+├── src/
+│   ├── index.ts
+│   ├── server/
+│   │   ├── index.ts
+│   │   ├── mcp-server.ts          # Main MCP server implementation
+│   │   ├── handlers.ts            # Request handlers
+│   │   └── tools/                 # MCP tools implementation
+│   │       ├── index.ts
+│   │       ├── execute-query.ts
+│   │       ├── list-databases.ts
+│   │       ├── describe-table.ts
+│   │       └── list-tables.ts
+│   ├── database/
+│   │   ├── index.ts
+│   │   ├── base.ts                # Abstract base database interface
+│   │   ├── factory.ts             # Database driver factory
+│   │   ├── pool.ts                # Connection pooling
+│   │   └── drivers/
+│   │       ├── index.ts
+│   │       ├── sqlite-driver.ts
+│   │       ├── postgresql-driver.ts
+│   │       └── mysql-driver.ts
+│   ├── config/
+│   │   ├── index.ts
+│   │   ├── settings.ts            # Configuration schemas
+│   │   └── database-config.ts     # Database configurations
+│   ├── security/
+│   │   ├── index.ts
+│   │   ├── encryption.ts          # Credential encryption
+│   │   ├── validators.ts          # Query validation
+│   │   └── audit.ts               # Audit logging
+│   ├── utils/
+│   │   ├── index.ts
+│   │   ├── logger.ts              # Structured logging
+│   │   ├── exceptions.ts          # Custom exceptions
+│   │   └── helpers.ts             # Utility functions
+│   └── types/
+│       ├── index.ts
+│       ├── database.ts
+│       ├── mcp.ts
+│       └── config.ts
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   └── fixtures/
+├── examples/
+│   ├── basic-usage.js
+│   ├── configuration-examples/
+│   └── client-examples/
+├── docs/
+├── package.json
+├── package-lock.json
+├── tsconfig.json
+├── .env.example
+├── .gitignore
+├── README.md
+├── jest.config.js
+└── LICENSE
+
+## MCP TOOLS SPECIFICATION
+
+### Tool: execute_query
+```typescript
+{
+  name: "execute_query",
+  description: "Execute SQL query on specified database",
+  inputSchema: {
+    type: "object",
+    properties: {
+      database_name: { type: "string", description: "Target database identifier" },
+      query: { type: "string", description: "SQL query to execute" },
+      parameters: { type: "array", description: "Query parameters for parameterized queries" }
+    },
+    required: ["database_name", "query"]
+  }
+}
+
+Tool: list_databases
+{
+  name: "list_databases",
+  description: "List all configured databases and their connection status",
+  inputSchema: { type: "object", properties: {} }
+}
+
+Tool: describe_table
+TypeScript
+{
+  name: "describe_table",
+  description: "Get table schema information",
+  inputSchema: {
+    type: "object",
+    properties: {
+      database_name: { type: "string" },
+      table_name: { type: "string" }
+    },
+    required: ["database_name", "table_name"]
+  }
+}
+Tool: list_tables
+TypeScript
+{
+  name: "list_tables",
+  description: "List all tables in specified database",
+  inputSchema: {
+    type: "object",
+    properties: {
+      database_name: { type: "string" }
+    },
+    required: ["database_name"]
+  }
+}
+TECHNICAL REQUIREMENTS
+Dependencies (package.json)
+JSON
+{
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "better-sqlite3": "^9.2.2",
+    "pg": "^8.11.3",
+    "mysql2": "^3.6.5",
+    "zod": "^3.22.4",
+    "dotenv": "^16.3.1",
+    "winston": "^3.11.0",
+    "crypto-js": "^4.2.0",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.4",
+    "@types/pg": "^8.10.9",
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/crypto-js": "^4.2.1",
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "@types/jest": "^29.5.8",
+    "typescript": "^5.3.2",
+    "ts-node": "^10.9.1",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "eslint": "^8.54.0",
+    "@typescript-eslint/eslint-plugin": "^6.12.0",
+    "@typescript-eslint/parser": "^6.12.0",
+    "prettier": "^3.1.0",
+    "nodemon": "^3.0.2"
+  }
+}
+TypeScript Configuration Schema
+TypeScript
+// src/types/config.ts
+import { z } from 'zod';
+
+export const DatabaseConfigSchema = z.object({
+  type: z.enum(['sqlite', 'postgresql', 'mysql']),
+  name: z.string(),
+  // SQLite specific
+  path: z.string().optional(),
+  // Network database specific
+  host: z.string().optional(),
+  port: z.number().optional(),
+  database: z.string().optional(),
+  username: z.string().optional(),
+  password: z.string().optional(),
+  // Connection settings
+  maxConnections: z.number().default(10),
+  timeout: z.number().default(30000)
+});
+
+export const ServerConfigSchema = z.object({
+  host: z.string().default('localhost'),
+  port: z.number().default(8000),
+  logLevel: z.string().default('info'),
+  enableAuditLogging: z.boolean().default(true),
+  enableRateLimiting: z.boolean().default(true),
+  secretKey: z.string(),
+  encryptionKey: z.string()
+});
+
+export const SettingsSchema = z.object({
+  databases: z.record(DatabaseConfigSchema),
+  server: ServerConfigSchema
+});
+
+export type DatabaseConfig = z.infer<typeof DatabaseConfigSchema>;
+export type ServerConfig = z.infer<typeof ServerConfigSchema>;
+export type Settings = z.infer<typeof SettingsSchema>;
+CODING STANDARDS
+TypeScript Configuration (tsconfig.json)
+JSON
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "resolveJsonModule": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "tests"]
+}
+Code Style
+Use Prettier with 2-space indentation
+Follow ESLint TypeScript recommended rules
+Use camelCase for variables and functions
+Use PascalCase for classes and interfaces
+Document all public functions with JSDoc
+Use structured logging with contextual information
+Error Handling
+TypeScript
+// src/utils/exceptions.ts
+export class MCPDatabaseError extends Error {
+  constructor(message: string, public code?: string) {
+    super(message);
+    this.name = 'MCPDatabaseError';
+  }
+}
+
+export class DatabaseConnectionError extends MCPDatabaseError {
+  constructor(message: string) {
+    super(message, 'DB_CONNECTION_ERROR');
+    this.name = 'DatabaseConnectionError';
+  }
+}
+
+export class QueryExecutionError extends MCPDatabaseError {
+  constructor(message: string) {
+    super(message, 'QUERY_EXECUTION_ERROR');
+    this.name = 'QueryExecutionError';
+  }
+}
+
+export class ValidationError extends MCPDatabaseError {
+  constructor(message: string) {
+    super(message, 'VALIDATION_ERROR');
+    this.name = 'ValidationError';
+  }
+}
+Async Patterns
+Use async/await consistently
+Implement proper connection lifecycle management
+Use try-catch-finally for resource management
+Handle promise rejections gracefully
+Use AbortController for cancellation
+Security Guidelines
+NEVER use string concatenation for SQL queries
+Always use parameterized queries/prepared statements
+Encrypt sensitive configuration data
+Log security events for audit trail
+Validate all user inputs with Zod schemas
+TESTING REQUIREMENTS
+Jest Configuration (jest.config.js)
+JavaScript
+module.exports = {
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  roots: ['<rootDir>/src', '<rootDir>/tests'],
+  testMatch: ['**/__tests__/**/*.ts', '**/?(*.)+(spec|test).ts'],
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!src/**/*.d.ts',
+    '!src/index.ts'
+  ],
+  coverageThreshold: {
+    global: {
+      branches: 90,
+      functions: 90,
+      lines: 90,
+      statements: 90
+    }
+  }
+};
+Test Coverage
+Unit tests: 90%+ coverage
+Integration tests for each database type
+End-to-end MCP protocol tests
+Security vulnerability tests
+Performance and load tests
+Test Structure
+TypeScript
+// tests/unit/database/sqlite-driver.test.ts
+describe('SQLiteDriver', () => {
+  let driver: SQLiteDriver;
+  
+  beforeEach(async () => {
+    driver = new SQLiteDriver({
+      type: 'sqlite',
+      name: 'test',
+      path: ':memory:'
+    });
+    await driver.connect();
+  });
+  
+  afterEach(async () => {
+    await driver.disconnect();
+  });
+  
+  it('should execute parameterized query safely', async () => {
+    // Test parameterized query execution
+  });
+  
+  it('should prevent SQL injection', async () => {
+    // Verify SQL injection protection
+  });
+});
+DEVELOPMENT PHASES
+Phase 1: Foundation (Week 1-2)
+ Project structure setup with TypeScript
+ Base MCP server implementation
+ Configuration management with Zod
+ Logging and error handling
+ Basic database interface
+Phase 2: Database Drivers (Week 3-4)
+ SQLite driver implementation
+ PostgreSQL driver implementation
+ MySQL driver implementation
+ Connection pooling
+ Basic security measures
+Phase 3: MCP Tools (Week 5-6)
+ execute_query tool
+ list_databases tool
+ describe_table tool
+ list_tables tool
+ Query validation with Zod
+ Result formatting
+Phase 4: Security & Production (Week 7-8)
+ Advanced security features
+ Audit logging with Winston
+ Rate limiting with express-rate-limit
+ Performance monitoring
+ Documentation
+ Docker deployment
+PACKAGE.JSON SCRIPTS
+JSON
+{
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "nodemon --exec ts-node src/index.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "format": "prettier --write src/**/*.ts",
+    "type-check": "tsc --noEmit"
+  }
+}
+FUTURE ROADMAP
+Phase 5: NoSQL Support
+MongoDB driver with official mongodb package
+Redis driver with ioredis
+Document database query tools
+Key-value store operations
+Phase 6: Advanced Features
+Query performance analytics
+Schema migration tools
+Data visualization helpers
+Multi-tenant support
+GraphQL query interface
+Phase 7: AI Integration
+Natural language to SQL conversion
+Query optimization suggestions
+Automated schema analysis
+Intelligent data insights
+DOCUMENTATION REQUIREMENTS
+README.md Sections
+Project overview and features
+Installation instructions (npm/yarn)
+Configuration guide
+Usage examples
+API reference
+Security considerations
+Contributing guidelines
+Roadmap and future features
+API Documentation
+Generate OpenAPI specs for REST endpoints
+Document all MCP tools with TypeScript examples
+Provide client integration examples
+Security best practices guide
+SUCCESS CRITERIA
+Minimum Viable Product (MVP)
+✅ MCP server running and responsive
+✅ All 3 database types supported
+✅ All 4 MCP tools implemented
+✅ Basic security measures active
+✅ Comprehensive test suite
+✅ Production-ready documentation
+Quality Gates
+Zero high-severity security vulnerabilities
+90%+ test coverage maintained
+All TypeScript compilation passes
+ESLint and Prettier checks pass
+Performance benchmarks met
+Memory leaks tested and resolved
+Start implementation immediately with Phase 1. Create all necessary files with proper TypeScript structure, implement core functionality, and ensure each component is thoroughly tested before moving to the next phase.
+
+Focus on clean, maintainable, and secure code using modern Node.js patterns. Every database operation must be logged, every user input must be validated with Zod, and every error must be handled gracefully with proper TypeScript types.
+
+Use ES modules (import/export) throughout the codebase and ensure full TypeScript type safety
