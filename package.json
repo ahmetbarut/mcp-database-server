@@ -3,7 +3,9 @@
   "version": "1.0.2",
   "description": "Model Context Protocol (MCP) server for multi-database query execution with support for SQLite, PostgreSQL, and MySQL",
   "main": "dist/index.js",
-  "bin": "dist/index.js",
+  "bin": {
+    "mcp-database-server": "dist/index.js"
+  },
   "type": "module",
   "engines": {
     "node": ">=18.0.0"
