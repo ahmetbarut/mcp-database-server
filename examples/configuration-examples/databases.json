@@ -1,0 +1,42 @@
+[
+  {
+    "name": "main_postgres",
+    "type": "postgresql",
+    "host": "localhost",
+    "port": 5432,
+    "username": "postgres",
+    "password": "postgres",
+    "database": "maindb",
+    "maxConnections": 20,
+    "timeout": 30000
+  },
+  {
+    "name": "analytics_mysql",
+    "type": "mysql",
+    "host": "localhost",
+    "port": 3306,
+    "username": "analytics",
+    "password": "analytics_pass",
+    "database": "analytics",
+    "maxConnections": 15,
+    "timeout": 60000
+  },
+  {
+    "name": "cache_sqlite",
+    "type": "sqlite",
+    "path": "./data/cache.db",
+    "maxConnections": 1,
+    "timeout": 10000
+  },
+  {
+    "name": "dev_postgres",
+    "type": "postgresql",
+    "host": "localhost",
+    "port": 5433,
+    "username": "dev",
+    "password": "dev",
+    "database": "dev_db",
+    "maxConnections": 10,
+    "timeout": 30000
+  }
+] 

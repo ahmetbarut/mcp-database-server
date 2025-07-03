@@ -1,4 +1,6 @@
 import dotenv from 'dotenv';
+import { promises as fs } from 'fs';
+import path from 'path';
 import { 
   SettingsSchema, 
   Settings, 
@@ -27,7 +29,7 @@ class ConfigManager {
       // Build configuration from environment variables
       const config = {
         server: this.buildServerConfig(),
-        databases: this.buildDatabaseConfigs()
+        databases: await this.buildDatabaseConfigs()
       };
 
       // Validate configuration with Zod
@@ -76,13 +78,31 @@ class ConfigManager {
 
   /**
    * Build database configurations from environment variables
-   * Supports both individual env vars and JSON array format
+   * Supports both individual env vars, JSON array format, and JSON file format
    */
-  private buildDatabaseConfigs(): Record<string, DatabaseConfig> {
+  private async buildDatabaseConfigs(): Promise<Record<string, DatabaseConfig>> {
     const databases: Record<string, DatabaseConfig> = {};
 
-    // First, try to parse DATABASE_CONNECTIONS JSON array
-    if (process.env.DATABASE_CONNECTIONS) {
+    // First, try to load from DATABASE_CONNECTIONS_FILE (file-based JSON)
+    if (process.env.DATABASE_CONNECTIONS_FILE) {
+      try {
+        const jsonConnections = await this.loadJsonConnectionsFromFile(process.env.DATABASE_CONNECTIONS_FILE);
+        
+        // Convert array to record using name as key
+        for (const connection of jsonConnections) {
+          databases[connection.name] = connection;
+        }
+        
+        logger.info(`Loaded ${jsonConnections.length} database connections from file: ${process.env.DATABASE_CONNECTIONS_FILE}`, {
+          connectionNames: jsonConnections.map(c => c.name)
+        });
+      } catch (error) {
+        logger.error(`Failed to load database connections from file: ${process.env.DATABASE_CONNECTIONS_FILE}`, error as Error);
+        throw new ConfigurationError(`Failed to load DATABASE_CONNECTIONS_FILE: ${(error as Error).message}`);
+      }
+    }
+    // Fallback: try to parse DATABASE_CONNECTIONS JSON string (legacy support)
+    else if (process.env.DATABASE_CONNECTIONS) {
       try {
         const jsonConnections = this.parseJsonConnections(process.env.DATABASE_CONNECTIONS);
         
@@ -91,9 +111,11 @@ class ConfigManager {
           databases[connection.name] = connection;
         }
         
-        logger.info(`Loaded ${jsonConnections.length} database connections from DATABASE_CONNECTIONS`, {
+        logger.info(`Loaded ${jsonConnections.length} database connections from DATABASE_CONNECTIONS environment variable`, {
           connectionNames: jsonConnections.map(c => c.name)
         });
+        
+        logger.warn('Using DATABASE_CONNECTIONS environment variable is deprecated. Consider using DATABASE_CONNECTIONS_FILE instead.');
       } catch (error) {
         logger.error('Failed to parse DATABASE_CONNECTIONS JSON', error as Error);
         throw new ConfigurationError(`Invalid DATABASE_CONNECTIONS JSON: ${(error as Error).message}`);
@@ -109,6 +131,39 @@ class ConfigManager {
     }
 
     return databases;
+  }
+
+  /**
+   * Load and parse database connections from JSON file
+   */
+  private async loadJsonConnectionsFromFile(filePath: string): Promise<DatabaseConnectionsArray> {
+    try {
+      // Resolve relative paths from cwd
+      const resolvedPath = path.resolve(filePath);
+      
+      // Check if file exists
+      try {
+        await fs.access(resolvedPath);
+      } catch {
+        throw new ConfigurationError(`Database connections file not found: ${resolvedPath}`);
+      }
+      
+      // Read and parse JSON file
+      const fileContent = await fs.readFile(resolvedPath, 'utf-8');
+      const parsed = JSON.parse(fileContent);
+      
+      // Validate with Zod schema
+      return DatabaseConnectionsArraySchema.parse(parsed);
+      
+    } catch (error) {
+      if (error instanceof ConfigurationError) {
+        throw error;
+      }
+      if (error instanceof SyntaxError) {
+        throw new ConfigurationError(`Invalid JSON in database connections file ${filePath}: ${error.message}`);
+      }
+      throw new ConfigurationError(`Failed to load database connections file ${filePath}: ${(error as Error).message}`);
+    }
   }
 
   /**

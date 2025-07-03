@@ -121,9 +121,48 @@ mcp-database-server
 
 ## Configuration
 
-### Option 1: JSON Database Connections (Recommended)
+### Option 1: File-based JSON Configuration (⭐ Recommended)
 
-Configure multiple databases using the `DATABASE_CONNECTIONS` environment variable:
+Configure multiple databases using a JSON file pointed to by `DATABASE_CONNECTIONS_FILE` environment variable:
+
+**Step 1: Create a database configuration JSON file**
+
+Create `databases.json` (or any name you prefer):
+```json
+[
+  {
+    "name": "postgres_main",
+    "type": "postgresql",
+    "host": "localhost",
+    "port": 5432,
+    "username": "postgres",
+    "password": "postgres",
+    "database": "maindb",
+    "maxConnections": 20,
+    "timeout": 30000
+  },
+  {
+    "name": "mysql_analytics",
+    "type": "mysql",
+    "host": "localhost",
+    "port": 3306,
+    "username": "root",
+    "password": "password",
+    "database": "analytics",
+    "maxConnections": 15,
+    "timeout": 30000
+  },
+  {
+    "name": "sqlite_cache",
+    "type": "sqlite",
+    "path": "./data/cache.db",
+    "maxConnections": 1,
+    "timeout": 10000
+  }
+]
+```
+
+**Step 2: Set environment variables**
 
 ```env
 # Server Configuration
@@ -137,7 +176,32 @@ ENABLE_RATE_LIMITING=true
 SECRET_KEY=your-secret-key-here
 ENCRYPTION_KEY=your-encryption-key-here
 
-# JSON Database Connections - Multiple databases in one variable
+# File-based JSON Database Connections (Recommended)
+DATABASE_CONNECTIONS_FILE=./config/databases.json
+```
+
+**Benefits of file-based configuration:**
+- ✅ Better syntax highlighting and validation in your editor
+- ✅ Easier to maintain and version control
+- ✅ No escaping issues with quotes or special characters
+- ✅ Can be shared across different deployment environments
+- ✅ Supports comments (if using JSON5 or YAML in the future)
+
+### Option 2: Direct JSON Environment Variable (Legacy)
+
+Configure multiple databases using the `DATABASE_CONNECTIONS` environment variable:
+
+```env
+# Server Configuration (same as Option 1)
+SERVER_HOST=localhost
+SERVER_PORT=8000
+LOG_LEVEL=info
+ENABLE_AUDIT_LOGGING=true
+ENABLE_RATE_LIMITING=true
+SECRET_KEY=your-secret-key-here
+ENCRYPTION_KEY=your-encryption-key-here
+
+# Direct JSON Database Connections (Legacy - still supported but not recommended)
 DATABASE_CONNECTIONS='[
   {
     "name": "postgres_main",
@@ -171,7 +235,9 @@ DATABASE_CONNECTIONS='[
 ]'
 ```
 
-### Option 2: Individual Environment Variables (Legacy)
+**Note:** The direct JSON approach is still supported for backward compatibility but is deprecated. Use `DATABASE_CONNECTIONS_FILE` for better maintainability.
+
+### Option 3: Individual Environment Variables (Legacy)
 
 For simpler setups, you can still use individual environment variables:
 
