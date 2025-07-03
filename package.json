@@ -3,9 +3,27 @@
   "version": "1.0.0",
   "description": "Model Context Protocol (MCP) server for multi-database query execution with support for SQLite, PostgreSQL, and MySQL",
   "main": "dist/index.js",
+  "bin": "dist/index.js",
   "type": "module",
   "engines": {
     "node": ">=18.0.0"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ahmetbarut/mcp-database-server.git"
+  },
+  "homepage": "https://github.com/ahmetbarut/mcp-database-server#readme",
+  "bugs": {
+    "url": "https://github.com/ahmetbarut/mcp-database-server/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsc",
@@ -17,7 +35,11 @@
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write src/**/*.ts",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "prepublishOnly": "npm run build",
+    "prepare": "npm run build",
+    "publish:npm": "npm publish",
+    "publish:dry": "npm publish --dry-run"
   },
   "keywords": [
     "mcp",

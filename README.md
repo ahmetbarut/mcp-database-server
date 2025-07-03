@@ -2,6 +2,21 @@
 
 A Model Context Protocol (MCP) server that provides multi-database query execution capabilities with support for SQLite, PostgreSQL, and MySQL databases. Built with TypeScript and Node.js, focusing on security, performance, and extensibility.
 
+## 📦 NPM Package
+
+**Available on NPM:** [`@ahmetbarut/mcp-database-server`](https://www.npmjs.com/package/@ahmetbarut/mcp-database-server)
+
+```bash
+# Use with npx (no installation required)
+npx @ahmetbarut/mcp-database-server
+
+# Or install globally
+npm install -g @ahmetbarut/mcp-database-server
+
+# Or install locally
+npm install @ahmetbarut/mcp-database-server
+```
+
 ## Features
 
 - **Multi-Database Support**: SQLite, PostgreSQL, and MySQL with real connections
@@ -59,6 +74,24 @@ The MCP Database Server is now **production-ready** with full database connectiv
 
 ## Installation
 
+### Option 1: Quick Start with npx (⭐ Recommended)
+
+The easiest way to use the MCP Database Server is with `npx`. No installation or build required!
+
+```bash
+# Instant usage - no installation needed
+npx @ahmetbarut/mcp-database-server
+
+# Quick test to verify it works
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' | npx @ahmetbarut/mcp-database-server
+```
+
+**✅ Ready for MCP Configuration**: Just use `"command": "npx"` and `"args": ["@ahmetbarut/mcp-database-server"]` in your MCP configuration file.
+
+### Option 2: Local Development Setup
+
+For development or customization:
+
 ```bash
 # Clone the repository
 git clone <repository-url>
@@ -67,12 +100,24 @@ cd mcp-database-server
 # Install dependencies
 npm install
 
-# Copy environment template
-cp .env.example .env
+# Build for MCP usage
+npm run build
 
-# Edit .env with your database configurations
-nano .env
+# Start in development mode
+npm run dev
 ```
+
+### Option 3: Global Installation
+
+```bash
+# Install globally
+npm install -g @ahmetbarut/mcp-database-server
+
+# Use directly
+mcp-database-server
+```
+
+**Note**: For MCP usage, you don't need `.env` file. All configuration is done through `mcp.json` environment variables.
 
 ## Configuration
 
@@ -194,53 +239,296 @@ npm run lint
 npm run format
 ```
 
-## Testing with MCP Inspector
+## Publishing to NPM
 
-The server is now fully compatible with MCP Inspector:
+### Pre-publish Checklist
+
+1. **Build and test**:
+   ```bash
+   npm run build
+   npm test
+   npm run lint
+   ```
+
+2. **Test dry run**:
+   ```bash
+   npm run publish:dry
+   ```
+
+3. **Update version** (if needed):
+   ```bash
+   npm version patch  # for bug fixes
+   npm version minor  # for new features
+   npm version major  # for breaking changes
+   ```
+
+### Publishing Steps
 
 ```bash
-# Build the project first
-npm run build
+# Login to npm (first time only)
+npm login
 
-# Test with MCP Inspector using:
-# Command: node
-# Args: dist/index.js
-# Working Directory: /path/to/mcp-database-server
+# Publish to npm
+npm run publish:npm
+
+# Or use the standard command
+npm publish
 ```
+
+### Verify Publication
+
+```bash
+# Test installation
+npx @ahmetbarut/mcp-database-server --version
+
+# Test with MCP Inspector using the published package
+```
+
+## MCP Configuration for Cursor & MCP Inspector
+
+### For Cursor IDE
+
+Add to your `~/.cursor/mcp.json` file:
+
+```json
+{
+  "mcpServers": {
+    "mcp-database-server": {
+      "command": "node",
+      "args": [
+        "dist/index.js"
+      ],
+      "cwd": "/Users/user/Apps/mcp-database-server",
+      "env": {
+        "LOG_LEVEL": "info",
+        "SECRET_KEY": "your-secret-key-here",
+        "ENCRYPTION_KEY": "your-encryption-key-here",
+        "DATABASE_CONNECTIONS": "[{\"name\":\"local_cache\",\"type\":\"sqlite\",\"path\":\"./cache.db\",\"maxConnections\":1,\"timeout\":10000},{\"name\":\"postgres_main\",\"type\":\"postgresql\",\"host\":\"localhost\",\"port\":5432,\"username\":\"postgres\",\"password\":\"postgres\",\"database\":\"maindb\",\"maxConnections\":20,\"timeout\":30000}]"
+      }
+    }
+  }
+}
+```
+
+### For Development Mode
+
+```json
+{
+  "mcpServers": {
+    "mcp-database-server-dev": {
+      "command": "npm",
+      "args": [
+        "run",
+        "dev"
+      ],
+      "cwd": "/Users/user/Apps/mcp-database-server",
+      "env": {
+        "NODE_ENV": "development",
+        "LOG_LEVEL": "debug",
+        "DATABASE_CONNECTIONS": "[{\"name\":\"local_db\",\"type\":\"sqlite\",\"path\":\"./dev.db\",\"maxConnections\":1,\"timeout\":10000}]"
+      }
+    }
+  }
+}
+```
+
+### Simple SQLite-Only Configuration
+
+```json
+{
+  "mcpServers": {
+    "mcp-database-server-simple": {
+      "command": "node",
+      "args": ["dist/index.js"],
+      "cwd": "/Users/user/Apps/mcp-database-server",
+      "env": {
+        "LOG_LEVEL": "info",
+        "SECRET_KEY": "simple-secret",
+        "ENCRYPTION_KEY": "simple-encrypt",
+        "DATABASE_CONNECTIONS": "[{\"name\":\"my_db\",\"type\":\"sqlite\",\"path\":\"./data.db\",\"maxConnections\":1,\"timeout\":10000}]"
+      }
+    }
+  }
+}
+```
+
+### Configuration Parameters
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `command` | Node.js executable | `"node"` |
+| `args` | Script arguments | `["dist/index.js"]` |
+| `cwd` | Working directory | `"/path/to/mcp-database-server"` |
+| `DATABASE_CONNECTIONS` | JSON array of DB configs | `"[{...}]"` |
+| `SECRET_KEY` | Server security key | `"your-secret-key"` |
+| `ENCRYPTION_KEY` | Credential encryption | `"your-encrypt-key"` |
+| `LOG_LEVEL` | Logging level | `"info"`, `"debug"`, `"error"` |
+
+### Setup Steps for Cursor
+
+1. **Build the project**:
+   ```bash
+   cd /path/to/mcp-database-server
+   npm run build
+   ```
+
+2. **Add configuration** to `~/.cursor/mcp.json`
+
+3. **Restart Cursor IDE**
+
+4. **Test MCP tools** in chat:
+   - "List my database connections"
+   - "Show databases in local_cache"
+   - "Execute SQL: SELECT 1 as test"
+
+### Setup Steps for MCP Inspector
+
+#### Option 1: Using npx (Recommended)
+
+1. **Run MCP Inspector** with:
+   - **Command**: `npx`
+   - **Args**: `@ahmetbarut/mcp-database-server`
+   - **Environment Variables**:
+     ```
+     LOG_LEVEL=info
+     SECRET_KEY=test-secret
+     ENCRYPTION_KEY=test-encrypt
+     DATABASE_CONNECTIONS=[{"name":"test_db","type":"sqlite","path":"./test.db","maxConnections":1,"timeout":10000}]
+     ```
+
+#### Option 2: Using Local Build
+
+1. **Build the project**:
+   ```bash
+   npm run build
+   ```
+
+2. **Run MCP Inspector** with:
+   - **Command**: `node`
+   - **Args**: `dist/index.js`
+   - **Working Directory**: `/path/to/mcp-database-server`
+   - **Environment Variables**:
+     ```
+     LOG_LEVEL=info
+     SECRET_KEY=test-secret
+     ENCRYPTION_KEY=test-encrypt
+     DATABASE_CONNECTIONS=[{"name":"test_db","type":"sqlite","path":"./test.db","maxConnections":1,"timeout":10000}]
+     ```
+
+### Environment Variables for MCP
+
+When using MCP configuration, these environment variables are automatically set:
+
+```bash
+# Required
+SECRET_KEY=your-secret-key-here
+ENCRYPTION_KEY=your-encryption-key-here
+DATABASE_CONNECTIONS=[{...}]
+
+# Optional
+LOG_LEVEL=info
+SERVER_HOST=localhost
+SERVER_PORT=8000
+ENABLE_AUDIT_LOGGING=true
+ENABLE_RATE_LIMITING=true
+```
+
+### Multi-Database Example
+
+```json
+{
+  "mcpServers": {
+    "mcp-database-server-multi": {
+      "command": "npx",
+      "args": ["@ahmetbarut/mcp-database-server"],
+      "env": {
+        "LOG_LEVEL": "info",
+        "SECRET_KEY": "multi-db-secret",
+        "ENCRYPTION_KEY": "multi-db-encrypt",
+        "DATABASE_CONNECTIONS": "[{\"name\":\"sqlite_local\",\"type\":\"sqlite\",\"path\":\"./local.db\",\"maxConnections\":1,\"timeout\":10000},{\"name\":\"postgres_prod\",\"type\":\"postgresql\",\"host\":\"localhost\",\"port\":5432,\"username\":\"postgres\",\"password\":\"postgres\",\"database\":\"production\",\"maxConnections\":20,\"timeout\":30000},{\"name\":\"mysql_analytics\",\"type\":\"mysql\",\"host\":\"localhost\",\"port\":3306,\"username\":\"root\",\"password\":\"password\",\"database\":\"analytics\",\"maxConnections\":15,\"timeout\":30000}]"
+      }
+    }
+  }
+}
+```
+
+### Troubleshooting MCP Setup
+
+**Common Issues:**
+
+1. **"Command not found" (npx)**
+   - Ensure you have npm/node installed (version 18+)
+   - Check internet connection for package download
+   - Try: `npm cache clean --force` then retry
+
+2. **"Command not found" (local build)**
+   - Ensure `cwd` points to correct directory
+   - Run `npm run build` first
+   - Check that `dist/index.js` exists
+
+3. **"Connection failed"**
+   - Check database credentials in `DATABASE_CONNECTIONS`
+   - Verify database servers are running
+   - Test connections manually first
+
+4. **"Environment variable error"**
+   - Escape JSON properly in `DATABASE_CONNECTIONS`
+   - Use double quotes for JSON properties
+   - Validate JSON format online
+
+5. **"Permission denied"**
+   - Check file permissions in working directory
+   - Ensure Node.js has access to SQLite file path
+   - Create SQLite database directory if needed
+
+6. **"Package not found" (npx)**
+   - Package may not be published yet
+   - Use local build method instead
+   - Check package name: `@ahmetbarut/mcp-database-server`
 
 ## Testing and Examples
 
 ### Manual Testing with Real Database Operations
 
+#### Using npx (Recommended)
+
 ```bash
 # Test basic server functionality
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0.0"}}}
-{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | node dist/index.js
+{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | npx @ahmetbarut/mcp-database-server
 
 # Test database connections and listing
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0.0"}}}
 {"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_databases","arguments":{}}}
-{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_connections","arguments":{}}}' | node dist/index.js
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_connections","arguments":{}}}' | npx @ahmetbarut/mcp-database-server
 
 # Test real SQL query execution (SQLite example)
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0.0"}}}
-{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute_query","arguments":{"connection_name":"local_cache","query":"SELECT 1 as test_number, '\''Hello World'\'' as message"}}}' | node dist/index.js
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute_query","arguments":{"connection_name":"local_cache","query":"SELECT 1 as test_number, '\''Hello World'\'' as message"}}}' | npx @ahmetbarut/mcp-database-server
 
 # Test parameterized query for security
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0.0"}}}
-{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute_query","arguments":{"connection_name":"local_cache","query":"SELECT ? as param_value, ? as second_param","parameters":["Test Value","42"]}}}' | node dist/index.js
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute_query","arguments":{"connection_name":"local_cache","query":"SELECT ? as param_value, ? as second_param","parameters":["Test Value","42"]}}}' | npx @ahmetbarut/mcp-database-server
 
 # Test DDL operations (CREATE TABLE)
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0.0"}}}
-{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute_query","arguments":{"connection_name":"local_cache","query":"CREATE TABLE IF NOT EXISTS demo_users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT UNIQUE, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)"}}}' | node dist/index.js
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute_query","arguments":{"connection_name":"local_cache","query":"CREATE TABLE IF NOT EXISTS demo_users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT UNIQUE, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)"}}}' | npx @ahmetbarut/mcp-database-server
 
 # Test DML operations (INSERT)
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0.0"}}}
-{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute_query","arguments":{"connection_name":"local_cache","query":"INSERT INTO demo_users (name, email) VALUES (?, ?)","parameters":["John Doe","john@example.com"]}}}' | node dist/index.js
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute_query","arguments":{"connection_name":"local_cache","query":"INSERT INTO demo_users (name, email) VALUES (?, ?)","parameters":["John Doe","john@example.com"]}}}' | npx @ahmetbarut/mcp-database-server
 
 # Test data retrieval (SELECT)
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0.0"}}}
-{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute_query","arguments":{"connection_name":"local_cache","query":"SELECT id, name, email, created_at FROM demo_users ORDER BY id"}}}' | node dist/index.js
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute_query","arguments":{"connection_name":"local_cache","query":"SELECT id, name, email, created_at FROM demo_users ORDER BY id"}}}' | npx @ahmetbarut/mcp-database-server
+```
+
+#### Using Local Build (Development)
+
+```bash
+# If you're developing locally, you can still use the built version
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0.0"}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | node dist/index.js
 ```
 
 ### Interactive Demos
