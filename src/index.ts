@@ -37,10 +37,8 @@ async function main(): Promise<void> {
   }
 }
 
-// Run the application
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch((error) => {
-    console.error('Unhandled error:', error);
-    process.exit(1);
-  });
-} 
+// Run the application - always run when this file is executed
+main().catch((error) => {
+  console.error('Unhandled error:', error);
+  process.exit(1);
+}); 
