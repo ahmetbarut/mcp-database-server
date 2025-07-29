@@ -99,6 +99,20 @@ export class MCPDatabaseServer {
             },
           },
           {
+            name: 'retry_failed_connections',
+            description: 'Retry failed database connections',
+            inputSchema: { 
+              type: 'object', 
+              properties: {
+                connection_name: {
+                  type: 'string',
+                  description: 'Name of specific connection to retry. If not provided, retries all failed connections.',
+                  optional: true
+                }
+              }
+            },
+          },
+          {
             name: 'list_connections',
             description: 'List all database connections with detailed information and status',
             inputSchema: { 
@@ -120,19 +134,35 @@ export class MCPDatabaseServer {
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
 
-      if (name === 'execute_query') {
-        return await this.handleExecuteQuery(args);
-      }
+      logger.info('Tool called', { name, args });
 
-      if (name === 'list_databases') {
-        return await this.handleListDatabases(args);
-      }
+      try {
+        let result: any;
 
-      if (name === 'list_connections') {
-        return await this.handleListConnections(args);
-      }
+        switch (name) {
+          case 'execute_query':
+            result = await this.handleExecuteQuery(args);
+            break;
+          case 'list_databases':
+            result = await this.handleListDatabases(args);
+            break;
+          case 'list_connections':
+            result = await this.handleListConnections(args);
+            break;
+          case 'retry_failed_connections':
+            result = await this.handleRetryFailedConnections(args);
+            break;
+          default:
+            throw new MCPProtocolError(`Unknown tool: ${name}`);
+        }
 
-      throw new MCPProtocolError(`Unknown tool: ${name}`);
+        return {
+          content: result.content,
+        };
+      } catch (error) {
+        logger.error('Tool execution error', error as Error, { name, args });
+        throw new MCPProtocolError(`Tool execution failed: ${(error as Error).message}`);
+      }
     });
   }
 
@@ -316,6 +346,31 @@ export class MCPDatabaseServer {
           
           // Recursively call with the auto-detected connection name
           return await this.handleListDatabases({ connection_name: singleActiveConnection.name });
+        }
+        
+        // If no connection_name provided and multiple or no active connections, show all configured connections
+        if (activeConnections.length === 0) {
+          const allConfiguredConnections = this.connectionManager.getConfiguredConnectionNames();
+          
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  message: 'No active database connections found. Please specify a connection_name or check your configuration.',
+                  configured_connections: allConfiguredConnections,
+                  connection_statuses: this.connectionManager.getConnectionStatus(),
+                  suggestions: [
+                    'Use list_connections tool to see all configured connections and their status',
+                    'Check if database servers are running and accessible',
+                    'Verify credentials and network connectivity',
+                    'Use retry_failed_connections tool to attempt reconnection'
+                  ]
+                }, null, 2),
+              },
+            ],
+            isError: true,
+          };
         }
       }
 
@@ -509,13 +564,143 @@ export class MCPDatabaseServer {
     }
   }
 
+  private async handleRetryFailedConnections(args: any = {}): Promise<any> {
+    try {
+      const connectionName = args.connection_name;
+      
+      if (connectionName) {
+        // Retry specific connection
+        const status = this.connectionManager.getConnectionStatus()
+          .find(s => s.name === connectionName);
+        
+        if (!status) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  error: `Connection '${connectionName}' not found in configuration`,
+                  available_connections: this.connectionManager.getConfiguredConnectionNames()
+                }, null, 2),
+              },
+            ],
+            isError: true,
+          };
+        }
+        
+        if (status.connected) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  message: `Connection '${connectionName}' is already connected`,
+                  connection: status
+                }, null, 2),
+              },
+            ],
+          };
+        }
+        
+        // Get the configuration for this connection
+        const settings = configManager.getSettings();
+        const config = settings.databases[connectionName];
+        
+        if (!config) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  error: `Configuration not found for connection '${connectionName}'`
+                }, null, 2),
+              },
+            ],
+            isError: true,
+          };
+        }
+        
+        try {
+          await this.connectionManager.addConnection(config);
+          
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  message: `Successfully retried connection '${connectionName}'`,
+                  connection: {
+                    name: connectionName,
+                    type: config.type,
+                    status: 'connected'
+                  }
+                }, null, 2),
+              },
+            ],
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  error: `Failed to retry connection '${connectionName}'`,
+                  details: (error as Error).message
+                }, null, 2),
+              },
+            ],
+            isError: true,
+          };
+        }
+      } else {
+        // Retry all failed connections
+        await this.connectionManager.retryFailedConnections();
+        
+        const updatedStatuses = this.connectionManager.getConnectionStatus();
+        const successful = updatedStatuses.filter(s => s.connected).length;
+        const failed = updatedStatuses.filter(s => !s.connected).length;
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                message: 'Retry operation completed',
+                summary: {
+                  total_connections: updatedStatuses.length,
+                  successful_connections: successful,
+                  failed_connections: failed
+                },
+                connection_statuses: updatedStatuses
+              }, null, 2),
+            },
+          ],
+        };
+      }
+    } catch (error) {
+      logger.error('Error in handleRetryFailedConnections', error as Error);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              error: 'Failed to retry connections',
+              details: (error as Error).message
+            }, null, 2),
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+
   private async handleListConnections(args: any = {}) {
     try {
       const settings = configManager.getSettings();
       const includeCredentials = args.include_credentials || false;
       
-      // Get real connection statuses
-      const connectionStatuses = this.connectionManager.getConnectionStatus();
+      // Get detailed connection statuses including failed connections
+      const connectionStatuses = this.connectionManager.getDetailedConnectionStatus();
       const statusMap = new Map(connectionStatuses.map(s => [s.name, s]));
 
       const connections = Object.entries(settings.databases).map(([key, config]) => {
@@ -525,12 +710,18 @@ export class MCPDatabaseServer {
           key,
           name: config.name,
           type: config.type,
-          status: status?.connected ? 'connected' : 'configured',
+          status: status?.connected ? 'connected' : (status ? 'failed' : 'configured'),
           settings: {
             maxConnections: config.maxConnections,
             timeout: config.timeout,
           },
         };
+
+        // Add error information if connection failed
+        if (status && !status.connected && status.error) {
+          connection.error = status.error;
+          connection.lastAttempt = status.lastAttempt?.toISOString();
+        }
 
         // Add connection details based on database type
         if (config.type === 'sqlite') {
@@ -557,6 +748,7 @@ export class MCPDatabaseServer {
       });
 
       const connectedCount = connectionStatuses.filter(s => s.connected).length;
+      const failedCount = connectionStatuses.filter(s => !s.connected).length;
 
       const summary = {
         total_connections: connections.length,
@@ -566,11 +758,27 @@ export class MCPDatabaseServer {
         }, {}),
         configured_connections: connections.length,
         active_connections: connectedCount,
+        failed_connections: failedCount,
+        connection_status: {
+          connected: connectedCount,
+          failed: failedCount,
+          total: connections.length
+        }
       };
 
       const result = {
         summary,
         connections,
+        troubleshooting: {
+          note: "If you see fewer connections than expected, check:",
+          suggestions: [
+            "1. Database server is running and accessible",
+            "2. Credentials are correct",
+            "3. Network connectivity (for remote databases)",
+            "4. Database exists and user has proper permissions",
+            "5. Check logs for specific error messages"
+          ]
+        }
       };
 
       return {

@@ -81,17 +81,39 @@ export class DatabaseDriverFactory {
 }
 
 /**
+ * Connection status interface
+ */
+interface ConnectionStatus {
+  name: string;
+  connected: boolean;
+  type: string;
+  error?: string;
+  lastAttempt?: Date;
+  config: DatabaseConfig;
+}
+
+/**
  * Database connection manager
- * Manages multiple database connections
+ * Manages multiple database connections with improved error handling
  */
 export class DatabaseConnectionManager {
   private connections: Map<string, DatabaseDriver> = new Map();
+  private connectionStatuses: Map<string, ConnectionStatus> = new Map();
 
   /**
    * Add a database connection
    */
   async addConnection(config: DatabaseConfig): Promise<void> {
     try {
+      // Update connection status to show attempt
+      this.connectionStatuses.set(config.name, {
+        name: config.name,
+        connected: false,
+        type: config.type,
+        lastAttempt: new Date(),
+        config
+      });
+
       if (this.connections.has(config.name)) {
         logger.warn('Connection already exists, replacing', { name: config.name });
         await this.removeConnection(config.name);
@@ -100,11 +122,30 @@ export class DatabaseConnectionManager {
       const driver = await DatabaseDriverFactory.createAndConnect(config);
       this.connections.set(config.name, driver);
       
-      logger.info('Database connection added', {
+      // Update status to connected
+      this.connectionStatuses.set(config.name, {
+        name: config.name,
+        connected: true,
+        type: config.type,
+        lastAttempt: new Date(),
+        config
+      });
+
+      logger.info('Database connection added successfully', {
         name: config.name,
         type: config.type,
       });
     } catch (error) {
+      // Update status with error
+      this.connectionStatuses.set(config.name, {
+        name: config.name,
+        connected: false,
+        type: config.type,
+        error: (error as Error).message,
+        lastAttempt: new Date(),
+        config
+      });
+
       logger.error('Failed to add database connection', error as Error, {
         name: config.name,
         type: config.type,
@@ -129,6 +170,9 @@ export class DatabaseConnectionManager {
         throw error;
       }
     }
+    
+    // Remove from status tracking
+    this.connectionStatuses.delete(name);
   }
 
   /**
@@ -139,25 +183,73 @@ export class DatabaseConnectionManager {
   }
 
   /**
-   * Get all connection names
+   * Get all connection names (both successful and failed)
    */
   getConnectionNames(): string[] {
-    return Array.from(this.connections.keys());
+    return Array.from(this.connectionStatuses.keys());
   }
 
   /**
-   * Get connection status for all connections
+   * Get all configured connection names (from status tracking)
+   */
+  getConfiguredConnectionNames(): string[] {
+    return Array.from(this.connectionStatuses.keys());
+  }
+
+  /**
+   * Get connection status for all connections (including failed ones)
    */
   getConnectionStatus(): Array<{
     name: string;
     connected: boolean;
-    type?: string;
+    type: string;
+    error?: string;
+    lastAttempt?: Date;
   }> {
-    return Array.from(this.connections.entries()).map(([name, driver]) => ({
-      name,
-      connected: driver.isConnected(),
-      type: (driver as any).config?.type,
+    return Array.from(this.connectionStatuses.values()).map(status => ({
+      name: status.name,
+      connected: status.connected,
+      type: status.type,
+      error: status.error,
+      lastAttempt: status.lastAttempt
     }));
+  }
+
+  /**
+   * Get detailed connection status including configuration
+   */
+  getDetailedConnectionStatus(): Array<{
+    name: string;
+    connected: boolean;
+    type: string;
+    error?: string;
+    lastAttempt?: Date;
+    config: DatabaseConfig;
+  }> {
+    return Array.from(this.connectionStatuses.values());
+  }
+
+  /**
+   * Check if a connection exists (regardless of status)
+   */
+  hasConnection(name: string): boolean {
+    return this.connectionStatuses.has(name);
+  }
+
+  /**
+   * Check if a connection is active/connected
+   */
+  isConnectionActive(name: string): boolean {
+    const status = this.connectionStatuses.get(name);
+    return status?.connected || false;
+  }
+
+  /**
+   * Get connection error if any
+   */
+  getConnectionError(name: string): string | undefined {
+    const status = this.connectionStatuses.get(name);
+    return status?.error;
   }
 
   /**
@@ -177,32 +269,88 @@ export class DatabaseConnectionManager {
 
     await Promise.all(disconnectPromises);
     this.connections.clear();
+    this.connectionStatuses.clear();
     
     logger.info('All database connections disconnected');
   }
 
   /**
-   * Initialize connections from configuration
+   * Initialize connections from configuration with improved error handling
    */
   async initializeConnections(configs: Record<string, DatabaseConfig>): Promise<void> {
-    const connectionPromises = Object.entries(configs).map(async ([key, config]) => {
-      try {
-        await this.addConnection(config);
-      } catch (error) {
-        logger.error('Failed to initialize connection', error as Error, {
-          key,
-          name: config.name,
-          type: config.type,
-        });
-        // Don't throw here - we want to continue with other connections
-      }
+    logger.info('Initializing database connections', {
+      totalConfigurations: Object.keys(configs).length,
+      configurations: Object.keys(configs)
     });
 
-    await Promise.all(connectionPromises);
-    
+    const connectionResults = await Promise.allSettled(
+      Object.entries(configs).map(async ([key, config]) => {
+        try {
+          await this.addConnection(config);
+          return { key, name: config.name, success: true };
+        } catch (error) {
+          logger.error('Failed to initialize connection', error as Error, {
+            key,
+            name: config.name,
+            type: config.type,
+          });
+          return { key, name: config.name, success: false, error: (error as Error).message };
+        }
+      })
+    );
+
+    // Log summary of connection results
+    const successful = connectionResults.filter(r => r.status === 'fulfilled' && r.value.success).length;
+    const failed = connectionResults.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)).length;
+
     logger.info('Database connections initialization completed', {
-      totalConnections: Object.keys(configs).length,
-      successfulConnections: this.connections.size,
+      totalConfigurations: Object.keys(configs).length,
+      successfulConnections: successful,
+      failedConnections: failed,
+      activeConnections: this.connections.size,
     });
+
+    // Log details of failed connections
+    if (failed > 0) {
+      const failedDetails = connectionResults
+        .filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success))
+        .map(r => {
+          if (r.status === 'rejected') {
+            return { error: r.reason?.message || 'Unknown error' };
+          }
+          return r.value;
+        });
+      
+      logger.warn('Some database connections failed to initialize', {
+        failedConnections: failedDetails
+      });
+    }
+  }
+
+  /**
+   * Retry failed connections
+   */
+  async retryFailedConnections(): Promise<void> {
+    const failedConnections = Array.from(this.connectionStatuses.entries())
+      .filter(([_, status]) => !status.connected);
+
+    if (failedConnections.length === 0) {
+      logger.info('No failed connections to retry');
+      return;
+    }
+
+    logger.info('Retrying failed connections', {
+      failedCount: failedConnections.length,
+      failedNames: failedConnections.map(([name, _]) => name)
+    });
+
+    for (const [name, status] of failedConnections) {
+      try {
+        await this.addConnection(status.config);
+        logger.info('Successfully retried connection', { name });
+      } catch (error) {
+        logger.error('Failed to retry connection', error as Error, { name });
+      }
+    }
   }
 } 

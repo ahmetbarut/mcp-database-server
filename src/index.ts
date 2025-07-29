@@ -38,7 +38,7 @@ async function main(): Promise<void> {
 }
 
 // Run the application - always run when this file is executed
-main().catch((error) => {
-  console.error('Unhandled error:', error);
-  process.exit(1);
-}); 
+  main().catch((error) => {
+    console.error('Unhandled error:', error);
+    process.exit(1);
+  });

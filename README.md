@@ -23,6 +23,8 @@ npm install @ahmetbarut/mcp-database-server
 - **MCP Protocol Compliance**: Full JSON-RPC implementation with complete tool support
 - **Real Database Operations**: Execute SQL queries on live database connections
 - **Smart Auto-Detection**: Automatically selects single active connection for queries
+- **Advanced Connection Management**: Track all configured connections (successful and failed)
+- **Connection Recovery**: Retry failed connections with detailed error reporting
 - **Security First**: Parameterized queries, SQL injection protection, audit logging
 - **Flexible Configuration**: JSON array format for multiple database connections
 - **Type Safety**: Full TypeScript implementation with Zod validation
@@ -57,6 +59,7 @@ npm install @ahmetbarut/mcp-database-server
   - [x] `execute_query` tool - **Execute SQL queries on real databases**
   - [x] `list_databases` tool - List real databases from connections + smart auto-detection
   - [x] `list_connections` tool - Detailed connection status and credentials
+  - [x] `retry_failed_connections` tool - Retry failed connections with detailed error reporting
 - [x] **Advanced Security Features:**
   - [x] **Parameterized queries** for SQL injection protection
   - [x] **Query validation** and sanitization
@@ -118,6 +121,48 @@ mcp-database-server
 ```
 
 **Note**: For MCP usage, you don't need `.env` file. All configuration is done through `mcp.json` environment variables.
+
+## Multi-Connection Management
+
+The MCP Database Server supports managing multiple database connections simultaneously with advanced error handling and recovery capabilities.
+
+### Connection Status Tracking
+
+The server tracks all configured connections, including:
+- **Connected**: Successfully established connections
+- **Failed**: Connections that failed to establish (with error details)
+- **Configured**: Connections defined in configuration but not yet attempted
+
+### Connection Recovery
+
+When connections fail, the server provides:
+- **Detailed error reporting** with specific failure reasons
+- **Automatic retry functionality** via the `retry_failed_connections` tool
+- **Connection status monitoring** to track success/failure rates
+- **Graceful degradation** - server continues operating with available connections
+
+### Troubleshooting Multiple Connections
+
+If you're experiencing issues with multiple connections:
+
+1. **Use `list_connections` tool** to see all configured connections and their status
+2. **Check error messages** for specific failure reasons
+3. **Use `retry_failed_connections` tool** to attempt reconnection
+4. **Verify database server status** and network connectivity
+5. **Check credentials and permissions** for each database
+
+### Example: Managing Multiple Connections
+
+```bash
+# List all connections (including failed ones)
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_connections","arguments":{}}}' | npx @ahmetbarut/mcp-database-server
+
+# Retry all failed connections
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"retry_failed_connections","arguments":{}}}' | npx @ahmetbarut/mcp-database-server
+
+# Retry specific connection
+echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"retry_failed_connections","arguments":{"connection_name":"my_postgres"}}}' | npx @ahmetbarut/mcp-database-server
+```
 
 ## Configuration
 

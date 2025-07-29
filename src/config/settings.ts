@@ -83,8 +83,14 @@ class ConfigManager {
   private async buildDatabaseConfigs(): Promise<Record<string, DatabaseConfig>> {
     const databases: Record<string, DatabaseConfig> = {};
 
+    logger.info('Building database configurations', {
+      DATABASE_CONNECTIONS_FILE: process.env.DATABASE_CONNECTIONS_FILE,
+      DATABASE_CONNECTIONS: process.env.DATABASE_CONNECTIONS ? 'present' : 'not set'
+    });
+
     // First, try to load from DATABASE_CONNECTIONS_FILE (file-based JSON)
     if (process.env.DATABASE_CONNECTIONS_FILE) {
+      logger.info(`Attempting to load connections from file: ${process.env.DATABASE_CONNECTIONS_FILE}`);
       try {
         const jsonConnections = await this.loadJsonConnectionsFromFile(process.env.DATABASE_CONNECTIONS_FILE);
         

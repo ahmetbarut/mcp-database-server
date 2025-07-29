@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "mcp-database-server": {
+      "command": "npx",
+      "args": ["@ahmetbarut/mcp-database-server"],
+      "env": {
+        "LOG_LEVEL": "info",
+        "SECRET_KEY": "multi-db-secret",
+        "ENCRYPTION_KEY": "multi-db-encrypt",
+        "DATABASE_CONNECTIONS_FILE": "/Users/user/NarbulutApps/databases.json"
+      }
+    }
+  }
+} 
