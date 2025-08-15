@@ -681,8 +681,7 @@ mcp-database-server/
 │       └── mcp.ts                # MCP protocol types
 ├── tests/                        # Test files
 ├── examples/                     # Usage examples
-├── docs/                         # Documentation
-└── logs/                         # Application logs
+└── docs/                         # Documentation
 ```
 
 ## Architecture

@@ -23,14 +23,6 @@ class Logger {
             winston.format.colorize(),
             winston.format.simple()
           )
-        }),
-        // File transport for production
-        new winston.transports.File({ 
-          filename: 'logs/error.log', 
-          level: 'error' 
-        }),
-        new winston.transports.File({ 
-          filename: 'logs/combined.log' 
         })
       ]
     });
