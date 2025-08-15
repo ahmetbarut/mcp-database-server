@@ -1,6 +1,6 @@
 {
   "name": "@ahmetbarut/mcp-database-server",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Model Context Protocol (MCP) server for multi-database query execution with support for SQLite, PostgreSQL, and MySQL",
   "main": "dist/index.js",
   "bin": {
