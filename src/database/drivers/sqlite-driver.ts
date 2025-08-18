@@ -17,7 +17,14 @@ export class SQLiteDriver extends BaseDatabaseDriver {
       const dbPath = this.config.path || ':memory:';
       
       this.db = new Database(dbPath, {
-        verbose: process.env.NODE_ENV === 'development' ? console.log : undefined,
+        verbose: process.env.NODE_ENV === 'development' ? (...args: unknown[]) => {
+          try {
+            const message = args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
+            logger.debug(message);
+          } catch {
+            logger.debug('better-sqlite3 verbose log');
+          }
+        } : undefined,
         timeout: this.config.timeout || 30000,
       });
 

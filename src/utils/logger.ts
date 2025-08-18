@@ -13,16 +13,15 @@ class Logger {
       format: winston.format.combine(
         winston.format.timestamp(),
         winston.format.errors({ stack: true }),
+        // Always emit structured JSON for machine parsing
         winston.format.json()
       ),
       defaultMeta: { service: 'mcp-database-server' },
       transports: [
-        // Console transport for development
+        // Console transport
+        // IMPORTANT: Route all logs to stderr so stdout remains reserved for MCP JSON-RPC
         new winston.transports.Console({
-          format: winston.format.combine(
-            winston.format.colorize(),
-            winston.format.simple()
-          )
+          stderrLevels: ['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly']
         })
       ]
     });
