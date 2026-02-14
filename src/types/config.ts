@@ -35,7 +35,9 @@ export const ServerConfigSchema = z.object({
   enableAuditLogging: z.boolean().default(true),
   enableRateLimiting: z.boolean().default(true),
   secretKey: z.string(),
-  encryptionKey: z.string()
+  encryptionKey: z.string(),
+  webUIPort: z.number().default(3693),
+  webUIEnabled: z.boolean().default(true)
 });
 
 /**

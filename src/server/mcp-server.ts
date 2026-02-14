@@ -10,6 +10,7 @@ import { configManager } from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import { MCPProtocolError } from '../utils/exceptions.js';
 import { DatabaseConnectionManager } from '../database/factory.js';
+import { WebUIServer } from '../web/index.js';
 
 /**
  * MCP Database Server Implementation
@@ -17,6 +18,7 @@ import { DatabaseConnectionManager } from '../database/factory.js';
 export class MCPDatabaseServer {
   private server: Server;
   private connectionManager: DatabaseConnectionManager;
+  private webServer: WebUIServer | null = null;
 
   constructor() {
     this.server = new Server(
@@ -812,6 +814,15 @@ export class MCPDatabaseServer {
       const settings = configManager.getSettings();
       await this.connectionManager.initializeConnections(settings.databases);
 
+      // Start Web UI server
+      if (settings.server.webUIEnabled) {
+        const store = configManager.getConfigStore();
+        if (store) {
+          this.webServer = new WebUIServer(settings.server.webUIPort, store);
+          await this.webServer.start();
+        }
+      }
+
       const transport = new StdioServerTransport();
       await this.server.connect(transport);
 
@@ -824,8 +835,15 @@ export class MCPDatabaseServer {
 
   async stop(): Promise<void> {
     try {
+      if (this.webServer) {
+        await this.webServer.stop();
+      }
       await this.connectionManager.disconnectAll();
       await this.server.close();
+      const store = configManager.getConfigStore();
+      if (store) {
+        store.close();
+      }
       logger.info('MCP Database Server stopped');
     } catch (error) {
       logger.error('Error stopping MCP server', error as Error);

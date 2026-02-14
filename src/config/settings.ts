@@ -1,16 +1,17 @@
 import dotenv from 'dotenv';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { 
-  SettingsSchema, 
-  Settings, 
-  DatabaseConfig, 
+import {
+  SettingsSchema,
+  Settings,
+  DatabaseConfig,
   DatabaseConnectionsArray,
   DatabaseConnectionsArraySchema,
-  ServerConfig 
+  ServerConfig
 } from '../types/config.js';
 import { ConfigurationError } from '../utils/exceptions.js';
 import { logger } from '../utils/logger.js';
+import { ConnectionConfigStore } from './config-store.js';
 
 // Load environment variables
 dotenv.config();
@@ -20,12 +21,18 @@ dotenv.config();
  */
 class ConfigManager {
   private settings: Settings | null = null;
+  private configStore: ConnectionConfigStore | null = null;
 
   /**
    * Load and validate configuration from environment variables and config files
    */
   async loadConfig(): Promise<Settings> {
     try {
+      // Initialize config store if not already done
+      if (!this.configStore) {
+        this.configStore = new ConnectionConfigStore();
+      }
+
       // Build configuration from environment variables
       const config = {
         server: this.buildServerConfig(),
@@ -34,7 +41,7 @@ class ConfigManager {
 
       // Validate configuration with Zod
       this.settings = SettingsSchema.parse(config);
-      
+
       logger.info('Configuration loaded successfully', {
         databaseCount: Object.keys(this.settings.databases).length,
         serverPort: this.settings.server.port,
@@ -46,6 +53,20 @@ class ConfigManager {
       logger.error('Failed to load configuration', error as Error);
       throw new ConfigurationError(`Configuration validation failed: ${(error as Error).message}`);
     }
+  }
+
+  /**
+   * Reload configuration (after web UI changes)
+   */
+  async reloadConfig(): Promise<Settings> {
+    return this.loadConfig();
+  }
+
+  /**
+   * Get the connection config store
+   */
+  getConfigStore(): ConnectionConfigStore | null {
+    return this.configStore;
   }
 
   /**
@@ -72,7 +93,9 @@ class ConfigManager {
       enableAuditLogging: process.env.ENABLE_AUDIT_LOGGING !== 'false',
       enableRateLimiting: process.env.ENABLE_RATE_LIMITING !== 'false',
       secretKey,
-      encryptionKey
+      encryptionKey,
+      webUIPort: parseInt(process.env.WEB_UI_PORT || '3693', 10),
+      webUIEnabled: process.env.WEB_UI_ENABLED !== 'false'
     };
   }
 
@@ -83,22 +106,37 @@ class ConfigManager {
   private async buildDatabaseConfigs(): Promise<Record<string, DatabaseConfig>> {
     const databases: Record<string, DatabaseConfig> = {};
 
+    // Load from SQLite config store first (primary source)
+    if (this.configStore) {
+      const storedConfigs = this.configStore.getAll();
+      for (const config of storedConfigs) {
+        databases[config.name] = config;
+      }
+      if (storedConfigs.length > 0) {
+        logger.info(`Loaded ${storedConfigs.length} connections from config store`, {
+          connectionNames: storedConfigs.map(c => c.name)
+        });
+      }
+    }
+
     logger.info('Building database configurations', {
       DATABASE_CONNECTIONS_FILE: process.env.DATABASE_CONNECTIONS_FILE,
       DATABASE_CONNECTIONS: process.env.DATABASE_CONNECTIONS ? 'present' : 'not set'
     });
 
-    // First, try to load from DATABASE_CONNECTIONS_FILE (file-based JSON)
+    // Then, try to load from DATABASE_CONNECTIONS_FILE (file-based JSON) — only add if not already present
     if (process.env.DATABASE_CONNECTIONS_FILE) {
       logger.info(`Attempting to load connections from file: ${process.env.DATABASE_CONNECTIONS_FILE}`);
       try {
         const jsonConnections = await this.loadJsonConnectionsFromFile(process.env.DATABASE_CONNECTIONS_FILE);
         
-        // Convert array to record using name as key
+        // Convert array to record using name as key (only add if not already from store)
         for (const connection of jsonConnections) {
-          databases[connection.name] = connection;
+          if (!databases[connection.name]) {
+            databases[connection.name] = connection;
+          }
         }
-        
+
         logger.info(`Loaded ${jsonConnections.length} database connections from file: ${process.env.DATABASE_CONNECTIONS_FILE}`, {
           connectionNames: jsonConnections.map(c => c.name)
         });
@@ -111,10 +149,12 @@ class ConfigManager {
     else if (process.env.DATABASE_CONNECTIONS) {
       try {
         const jsonConnections = this.parseJsonConnections(process.env.DATABASE_CONNECTIONS);
-        
-        // Convert array to record using name as key
+
+        // Convert array to record using name as key (only add if not already from store)
         for (const connection of jsonConnections) {
-          databases[connection.name] = connection;
+          if (!databases[connection.name]) {
+            databases[connection.name] = connection;
+          }
         }
         
         logger.info(`Loaded ${jsonConnections.length} database connections from DATABASE_CONNECTIONS environment variable`, {
@@ -128,9 +168,13 @@ class ConfigManager {
       }
     }
 
-    // Then, add individual database configurations (these will override JSON if same name exists)
+    // Then, add individual database configurations (only if not already present)
     const individualDatabases = this.buildIndividualDatabaseConfigs();
-    Object.assign(databases, individualDatabases);
+    for (const [key, config] of Object.entries(individualDatabases)) {
+      if (!databases[key]) {
+        databases[key] = config;
+      }
+    }
 
     if (Object.keys(databases).length === 0) {
       logger.warn('No database configurations found in environment variables');

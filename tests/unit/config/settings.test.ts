@@ -16,6 +16,20 @@ jest.mock('../../../src/utils/logger.js', () => ({
   logger: mockLogger
 }));
 
+// Mock ConnectionConfigStore (avoids loading better-sqlite3 native module in tests)
+const mockConfigStore = {
+  getAll: jest.fn().mockReturnValue([]),
+  getByName: jest.fn().mockReturnValue(null),
+  create: jest.fn(),
+  update: jest.fn(),
+  delete: jest.fn(),
+  close: jest.fn()
+};
+
+jest.mock('../../../src/config/config-store.js', () => ({
+  ConnectionConfigStore: jest.fn().mockImplementation(() => mockConfigStore)
+}));
+
 // Mock fs module for file-based tests
 const mockFsAccess = jest.fn() as jest.MockedFunction<typeof import('fs').promises.access>;
 const mockFsReadFile = jest.fn() as jest.MockedFunction<typeof import('fs').promises.readFile>;
@@ -24,7 +38,8 @@ jest.mock('fs', () => ({
   promises: {
     access: mockFsAccess,
     readFile: mockFsReadFile
-  }
+  },
+  mkdirSync: jest.fn()
 }));
 
 describe('JSON Database Connections', () => {
