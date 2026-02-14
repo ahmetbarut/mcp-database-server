@@ -25,7 +25,7 @@ export class PostgreSQLDriver extends BaseDatabaseDriver {
         max: this.config.maxConnections || 10,
         connectionTimeoutMillis: this.config.timeout || 30000,
         idleTimeoutMillis: 30000,
-        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+        ssl: this.config.ssl ? { rejectUnauthorized: false } : false,
       });
 
       // Test the connection

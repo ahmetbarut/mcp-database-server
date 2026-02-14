@@ -42,6 +42,7 @@ export class ConnectionConfigStore {
         path        TEXT,
         max_connections INTEGER DEFAULT 10,
         timeout     INTEGER DEFAULT 30000,
+        ssl         INTEGER DEFAULT 0,
         created_at  TEXT DEFAULT (datetime('now')),
         updated_at  TEXT DEFAULT (datetime('now'))
       )
@@ -62,8 +63,8 @@ export class ConnectionConfigStore {
     const validated = DatabaseConfigSchema.parse(config);
 
     this.db.prepare(`
-      INSERT INTO connections (name, type, host, port, database_name, username, password, path, max_connections, timeout)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO connections (name, type, host, port, database_name, username, password, path, max_connections, timeout, ssl)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       validated.name,
       validated.type,
@@ -74,7 +75,8 @@ export class ConnectionConfigStore {
       validated.password ?? null,
       validated.path ?? null,
       validated.maxConnections,
-      validated.timeout
+      validated.timeout,
+      validated.ssl ? 1 : 0
     );
 
     logger.info('Connection config created', { name: validated.name, type: validated.type });
@@ -92,7 +94,7 @@ export class ConnectionConfigStore {
     this.db.prepare(`
       UPDATE connections
       SET name = ?, type = ?, host = ?, port = ?, database_name = ?, username = ?, password = ?,
-          path = ?, max_connections = ?, timeout = ?, updated_at = datetime('now')
+          path = ?, max_connections = ?, timeout = ?, ssl = ?, updated_at = datetime('now')
       WHERE name = ?
     `).run(
       validated.name,
@@ -105,6 +107,7 @@ export class ConnectionConfigStore {
       validated.path ?? null,
       validated.maxConnections,
       validated.timeout,
+      validated.ssl ? 1 : 0,
       name
     );
 
@@ -135,6 +138,7 @@ export class ConnectionConfigStore {
       path: row.path ?? undefined,
       maxConnections: row.max_connections,
       timeout: row.timeout,
+      ssl: row.ssl === 1,
     });
   }
 }

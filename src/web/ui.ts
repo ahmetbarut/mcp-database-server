@@ -135,6 +135,10 @@ export const WEB_UI_HTML = `<!DOCTYPE html>
                 <input type="password" id="conn-password" />
               </div>
             </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+              <input type="checkbox" id="conn-ssl" style="width:auto;" />
+              <label for="conn-ssl" style="margin:0;">SSL Connection</label>
+            </div>
           </div>
 
           <div class="form-row">
@@ -224,6 +228,7 @@ export const WEB_UI_HTML = `<!DOCTYPE html>
         document.getElementById('conn-database').value = data.database || '';
         document.getElementById('conn-username').value = data.username || '';
         document.getElementById('conn-password').value = data.password || '';
+        document.getElementById('conn-ssl').checked = data.ssl || false;
         document.getElementById('conn-max').value = data.maxConnections || 10;
         document.getElementById('conn-timeout').value = data.timeout || 30000;
       }
@@ -253,6 +258,7 @@ export const WEB_UI_HTML = `<!DOCTYPE html>
         data.username = document.getElementById('conn-username').value.trim();
         const pw = document.getElementById('conn-password').value;
         if (pw) data.password = pw;
+        data.ssl = document.getElementById('conn-ssl').checked;
       }
       return data;
     }

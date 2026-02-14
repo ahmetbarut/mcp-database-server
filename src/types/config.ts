@@ -16,14 +16,10 @@ export const DatabaseConfigSchema = z.object({
   password: z.string().optional(),
   // Connection settings
   maxConnections: z.number().default(10),
-  timeout: z.number().default(30000)
+  timeout: z.number().default(30000),
+  ssl: z.boolean().default(false)
 });
 
-/**
- * JSON Database connections array schema
- * For parsing DATABASE_CONNECTIONS environment variable
- */
-export const DatabaseConnectionsArraySchema = z.array(DatabaseConfigSchema);
 
 /**
  * Server configuration schema
@@ -50,7 +46,6 @@ export const SettingsSchema = z.object({
 
 // Type exports
 export type DatabaseConfig = z.infer<typeof DatabaseConfigSchema>;
-export type DatabaseConnectionsArray = z.infer<typeof DatabaseConnectionsArraySchema>;
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
 export type Settings = z.infer<typeof SettingsSchema>;
 

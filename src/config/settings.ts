@@ -1,12 +1,8 @@
 import dotenv from 'dotenv';
-import { promises as fs } from 'fs';
-import path from 'path';
 import {
   SettingsSchema,
   Settings,
   DatabaseConfig,
-  DatabaseConnectionsArray,
-  DatabaseConnectionsArraySchema,
   ServerConfig
 } from '../types/config.js';
 import { ConfigurationError } from '../utils/exceptions.js';
@@ -24,7 +20,7 @@ class ConfigManager {
   private configStore: ConnectionConfigStore | null = null;
 
   /**
-   * Load and validate configuration from environment variables and config files
+   * Load and validate configuration from config store
    */
   async loadConfig(): Promise<Settings> {
     try {
@@ -33,10 +29,9 @@ class ConfigManager {
         this.configStore = new ConnectionConfigStore();
       }
 
-      // Build configuration from environment variables
       const config = {
         server: this.buildServerConfig(),
-        databases: await this.buildDatabaseConfigs()
+        databases: this.buildDatabaseConfigs()
       };
 
       // Validate configuration with Zod
@@ -100,13 +95,11 @@ class ConfigManager {
   }
 
   /**
-   * Build database configurations from environment variables
-   * Supports both individual env vars, JSON array format, and JSON file format
+   * Build database configurations from SQLite config store
    */
-  private async buildDatabaseConfigs(): Promise<Record<string, DatabaseConfig>> {
+  private buildDatabaseConfigs(): Record<string, DatabaseConfig> {
     const databases: Record<string, DatabaseConfig> = {};
 
-    // Load from SQLite config store first (primary source)
     if (this.configStore) {
       const storedConfigs = this.configStore.getAll();
       for (const config of storedConfigs) {
@@ -119,169 +112,8 @@ class ConfigManager {
       }
     }
 
-    logger.info('Building database configurations', {
-      DATABASE_CONNECTIONS_FILE: process.env.DATABASE_CONNECTIONS_FILE,
-      DATABASE_CONNECTIONS: process.env.DATABASE_CONNECTIONS ? 'present' : 'not set'
-    });
-
-    // Then, try to load from DATABASE_CONNECTIONS_FILE (file-based JSON) — only add if not already present
-    if (process.env.DATABASE_CONNECTIONS_FILE) {
-      logger.info(`Attempting to load connections from file: ${process.env.DATABASE_CONNECTIONS_FILE}`);
-      try {
-        const jsonConnections = await this.loadJsonConnectionsFromFile(process.env.DATABASE_CONNECTIONS_FILE);
-        
-        // Convert array to record using name as key (only add if not already from store)
-        for (const connection of jsonConnections) {
-          if (!databases[connection.name]) {
-            databases[connection.name] = connection;
-          }
-        }
-
-        logger.info(`Loaded ${jsonConnections.length} database connections from file: ${process.env.DATABASE_CONNECTIONS_FILE}`, {
-          connectionNames: jsonConnections.map(c => c.name)
-        });
-      } catch (error) {
-        logger.error(`Failed to load database connections from file: ${process.env.DATABASE_CONNECTIONS_FILE}`, error as Error);
-        throw new ConfigurationError(`Failed to load DATABASE_CONNECTIONS_FILE: ${(error as Error).message}`);
-      }
-    }
-    // Fallback: try to parse DATABASE_CONNECTIONS JSON string (legacy support)
-    else if (process.env.DATABASE_CONNECTIONS) {
-      try {
-        const jsonConnections = this.parseJsonConnections(process.env.DATABASE_CONNECTIONS);
-
-        // Convert array to record using name as key (only add if not already from store)
-        for (const connection of jsonConnections) {
-          if (!databases[connection.name]) {
-            databases[connection.name] = connection;
-          }
-        }
-        
-        logger.info(`Loaded ${jsonConnections.length} database connections from DATABASE_CONNECTIONS environment variable`, {
-          connectionNames: jsonConnections.map(c => c.name)
-        });
-        
-        logger.warn('Using DATABASE_CONNECTIONS environment variable is deprecated. Consider using DATABASE_CONNECTIONS_FILE instead.');
-      } catch (error) {
-        logger.error('Failed to parse DATABASE_CONNECTIONS JSON', error as Error);
-        throw new ConfigurationError(`Invalid DATABASE_CONNECTIONS JSON: ${(error as Error).message}`);
-      }
-    }
-
-    // Then, add individual database configurations (only if not already present)
-    const individualDatabases = this.buildIndividualDatabaseConfigs();
-    for (const [key, config] of Object.entries(individualDatabases)) {
-      if (!databases[key]) {
-        databases[key] = config;
-      }
-    }
-
     if (Object.keys(databases).length === 0) {
-      logger.warn('No database configurations found in environment variables');
-    }
-
-    return databases;
-  }
-
-  /**
-   * Load and parse database connections from JSON file
-   */
-  private async loadJsonConnectionsFromFile(filePath: string): Promise<DatabaseConnectionsArray> {
-    try {
-      // Resolve relative paths from cwd
-      const resolvedPath = path.resolve(filePath);
-      
-      // Check if file exists
-      try {
-        await fs.access(resolvedPath);
-      } catch {
-        throw new ConfigurationError(`Database connections file not found: ${resolvedPath}`);
-      }
-      
-      // Read and parse JSON file
-      const fileContent = await fs.readFile(resolvedPath, 'utf-8');
-      const parsed = JSON.parse(fileContent);
-      
-      // Validate with Zod schema
-      return DatabaseConnectionsArraySchema.parse(parsed);
-      
-    } catch (error) {
-      if (error instanceof ConfigurationError) {
-        throw error;
-      }
-      if (error instanceof SyntaxError) {
-        throw new ConfigurationError(`Invalid JSON in database connections file ${filePath}: ${error.message}`);
-      }
-      throw new ConfigurationError(`Failed to load database connections file ${filePath}: ${(error as Error).message}`);
-    }
-  }
-
-  /**
-   * Parse DATABASE_CONNECTIONS JSON string into validated array
-   */
-  private parseJsonConnections(jsonString: string): DatabaseConnectionsArray {
-    try {
-      const parsed = JSON.parse(jsonString);
-      return DatabaseConnectionsArraySchema.parse(parsed);
-    } catch (error) {
-      if (error instanceof SyntaxError) {
-        throw new ConfigurationError(`Invalid JSON in DATABASE_CONNECTIONS: ${error.message}`);
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Build database configurations from individual environment variables (legacy support)
-   */
-  private buildIndividualDatabaseConfigs(): Record<string, DatabaseConfig> {
-    const databases: Record<string, DatabaseConfig> = {};
-
-    // SQLite database
-    if (process.env.SQLITE_DB_PATH) {
-      databases.sqlite = {
-        type: 'sqlite',
-        name: 'sqlite',
-        path: process.env.SQLITE_DB_PATH,
-        maxConnections: parseInt(process.env.MAX_CONNECTIONS || '10', 10),
-        timeout: parseInt(process.env.CONNECTION_TIMEOUT || '30000', 10)
-      };
-    }
-
-    // PostgreSQL database
-    if (process.env.POSTGRES_HOST) {
-      databases.postgres = {
-        type: 'postgresql',
-        name: 'postgres',
-        host: process.env.POSTGRES_HOST,
-        port: parseInt(process.env.POSTGRES_PORT || '5432', 10),
-        database: process.env.POSTGRES_DATABASE,
-        username: process.env.POSTGRES_USERNAME,
-        password: process.env.POSTGRES_PASSWORD,
-        maxConnections: parseInt(process.env.MAX_CONNECTIONS || '10', 10),
-        timeout: parseInt(process.env.CONNECTION_TIMEOUT || '30000', 10)
-      };
-    }
-
-    // MySQL database
-    if (process.env.MYSQL_HOST) {
-      databases.mysql = {
-        type: 'mysql',
-        name: 'mysql',
-        host: process.env.MYSQL_HOST,
-        port: parseInt(process.env.MYSQL_PORT || '3306', 10),
-        database: process.env.MYSQL_DATABASE,
-        username: process.env.MYSQL_USERNAME,
-        password: process.env.MYSQL_PASSWORD,
-        maxConnections: parseInt(process.env.MAX_CONNECTIONS || '10', 10),
-        timeout: parseInt(process.env.CONNECTION_TIMEOUT || '30000', 10)
-      };
-    }
-
-    if (Object.keys(databases).length > 0) {
-      logger.info(`Loaded ${Object.keys(databases).length} database connections from individual environment variables`, {
-        connectionNames: Object.keys(databases)
-      });
+      logger.warn('No database connections configured. Use the Web UI to add connections.');
     }
 
     return databases;
@@ -293,11 +125,11 @@ class ConfigManager {
   getDatabaseConfig(name: string): DatabaseConfig {
     const settings = this.getSettings();
     const config = settings.databases[name];
-    
+
     if (!config) {
       throw new ConfigurationError(`Database '${name}' not found in configuration`);
     }
-    
+
     return config;
   }
 
@@ -311,4 +143,4 @@ class ConfigManager {
 }
 
 // Export singleton instance
-export const configManager = new ConfigManager(); 
+export const configManager = new ConfigManager();
